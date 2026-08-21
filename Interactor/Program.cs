@@ -1,4 +1,5 @@
-﻿using System.Text.Json;
+﻿using System.Text;
+using System.Text.Json;
 
 var interact = new Interactor();
 var ct = new CancellationTokenSource();
@@ -12,11 +13,16 @@ class Command
     public bool CanBeInterface { get; set; }
     // First level evaluate evidence
     public CommandsOrAction SubCommands { get; set; } = new List<Command>(); 
+    public required string Token { get; set; }
+    
 }
 
 class Interactor
 {
-    public ICollection<Command> RootCommands { get; set; } = []; 
+    public ICollection<Command> RootCommands { get; set; } = [new Command
+    {
+        Token = "ls"
+    }]; 
     public string Starter { get; set; } = ">";
     /// <summary>
     /// This should never end. 
@@ -32,6 +38,8 @@ class Interactor
         var buffer = new List<char>();
         while (true)
         {
+            Refresher();
+
             try
             {
                 cancellationToken.ThrowIfCancellationRequested();
@@ -40,65 +48,59 @@ class Interactor
             {
                 return; 
             }
-            Console.Write(Starter + " ");
-           while (true)
-            {
-                var key = Console.ReadKey(false);
-                switch (key)
-                {
-                    case {Key: ConsoleKey.Enter}:
-                        var content = new string(buffer.ToArray());
-                        buffer.Clear();
-                        if (!Normalize(content))
-                        {
-                            Console.WriteLine();
-                            Console.WriteLine("Bad command: {0}", content);
-                            goto break_while;
-                        }
 
-                        var c = content.Split(' ', StringSplitOptions.TrimEntries);
-                        Console.WriteLine(JsonSerializer.Serialize(c));
+            void Refresher()
+            {
+                Console.SetCursorPosition(0, Console.CursorTop);
+                for (int i = 0; i < 2 + buffer.Count; i++)
+                {
+                    Console.Write(" ");
+                }
+                Console.SetCursorPosition(0, Console.CursorTop);
+                
+                Console.Write(Starter + " " + new string(buffer.ToArray()));
+            }
+
+            var consoleKeyInfo = Console.ReadKey(true);
+            switch (consoleKeyInfo)
+            {
+                case {Key: ConsoleKey.Enter}:
+                    if (Check(new string(buffer.ToArray())))
+                    {
+                        void CommandParse(string[] command, int depth)
+                        {
+                        }
+                        var @out = new string(buffer.ToArray()).Split(' ',
+                            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
                         
                         Console.WriteLine();
-                        goto break_while;
-                    case {Key:ConsoleKey.Backspace}:
-                        if (buffer.Count > 0)
-                        {
-                            try
-                            {
-                                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
-                                buffer.RemoveAt(buffer.Count - 1);
-                                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
-                                Console.Write(" ");
-                                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
-                            }
-                            catch (ArgumentOutOfRangeException)
-                            {
-                            }
-                           
-                        }
-                        else
-                        {
-                                Console.SetCursorPosition(Console.CursorLeft - 1, Console.CursorTop);
-                            
-                        }
+                        Console.Write(JsonSerializer.Serialize(@out));
+                    }
+                    else
+                    {
+                        Console.WriteLine();
+                        Console.Write("Bad command");
                         
-                        break;
-                    default:
-                        buffer.Add(key.KeyChar);
-                        break; 
-                }
-            } break_while: ;
-           
-            
-            
-            
+                    }
+                    buffer.Clear();
+                    Console.WriteLine();
+                    break; 
+                case {Key: ConsoleKey.Backspace}:
+                    if (buffer.Count > 0)
+                    {
+                        buffer.RemoveAt(buffer.Count - 1);
+                    }
+                    break;
+                default:
+                    buffer.Add(consoleKeyInfo.KeyChar);
+                    break; 
+            }
             
             
         }
     }
 
-    private bool Normalize(string? str)
+    private bool Check(string? str)
     {
         if (string.IsNullOrWhiteSpace(str))
         {
