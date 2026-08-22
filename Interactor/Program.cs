@@ -1,27 +1,32 @@
-﻿using System.Text;
+﻿using System.Collections;
+using System.Text;
 using System.Text.Json;
 
 var interact = new Interactor();
-var ct = new CancellationTokenSource();
 
-await interact.ExecuteAsync(ct.Token);
+ interact.Execute();
 
-union CommandsOrAction(ICollection<Command>, Action);
+union  CommandsOrAction(IList<Command>, Action);
 class Command
 {
+    public Command Parent { get; set; }
     // Second level. 
     public bool CanBeInterface { get; set; }
     // First level evaluate evidence
-    public CommandsOrAction SubCommands { get; set; } = new List<Command>(); 
+    public CommandsOrAction SubCommandsOrAction { get; set; } = new List<Command>(); 
     public required string Token { get; set; }
     
 }
 
 class Interactor
 {
-    public ICollection<Command> RootCommands { get; set; } = [new Command
+    public IList<Command> RootCommands { get; set; } = [new Command
     {
-        Token = "ls"
+        Token = "ls", SubCommandsOrAction = new Action(() =>
+        {
+            Console.WriteLine();
+            Console.Write("lsslslsl");
+        })
     }]; 
     public string Starter { get; set; } = ">";
     /// <summary>
@@ -67,17 +72,38 @@ class Interactor
                 case {Key: ConsoleKey.Enter}:
                     if (Check(new string(buffer.ToArray())))
                     {
-                        void CommandParse(string[] command, int depth)
-                        {
-                        }
+                        
                         var @out = new string(buffer.ToArray()).Split(' ',
                             StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        
+                        var idx = 1;
+                        var command = RootCommands.FirstOrDefault(i=>i.Token == @out[0]);
+                        if (command is not null)
+                        {
+                            var sm = new ExecutorStateMachine(command);
+                            if (@out.Length != idx)
+                            {
+                                while (sm.HasNext(@out[idx]))
+                                {
+                                    sm.NextOrExec(@out[idx]);
+                                    idx++;
+                                }
+                            }
+                            else
+                            {
+                                sm.NextOrExec(@out[0]);
+                            }
+                            Console.WriteLine();
+                            buffer.Clear();
+                            break; 
+                        }
                         Console.WriteLine();
-                        Console.Write(JsonSerializer.Serialize(@out));
+                        Console.Write("Bad command");
+                        
+                       
                     }
                     else
                     {
+                        fail:
                         Console.WriteLine();
                         Console.Write("Bad command");
                         
@@ -118,5 +144,72 @@ class Interactor
         {
             Execute(cancellationToken.Value);
         }, cancellationToken.Value);
+    }
+}
+
+static class Ext
+{
+    public delegate bool CurrentWithNextDelegate<in T>(T current, T next);
+    extension<T>(IList<T> collection)
+    {
+        public bool CurrentWithNext(CurrentWithNextDelegate<T> predicate)
+        {
+            int index = 0;
+            while (index < collection.Count)
+            {
+                if (!predicate(collection[index], collection[index + 1]))
+                {
+                    return false;
+                }
+
+                index += 2;
+            }
+
+            return true;
+        }
+    }
+}
+
+class ExecutorStateMachine
+{
+    private Command Executing { get; set; }
+    
+
+    public ExecutorStateMachine(Command build)
+    {
+        Executing = build;
+    }
+
+    public void NextOrExec(string? content)
+    {
+        
+        if (Executing.SubCommandsOrAction is IList<Command>)
+        {
+            Executing = ((IList<Command>)Executing.SubCommandsOrAction.Value).FirstOrDefault(i => i.Token == content);
+            if (Executing is null)
+            {
+                Console.Write("Bad command");
+            }
+        }
+        else
+        {
+            ((Action)Executing.SubCommandsOrAction.Value).Invoke();
+        }
+    }
+
+    public bool HasNext(string token)
+    {
+        if (Executing.SubCommandsOrAction is IList<Command> )
+        {
+            if ((
+                    (IList<Command>)Executing.SubCommandsOrAction.Value).Count != 0 &&
+                ((IList<Command>)Executing.SubCommandsOrAction.Value).Any(i=>i.Token == token))
+            {
+                return true;
+            }
+
+        }
+
+        return false;
     }
 }
