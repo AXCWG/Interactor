@@ -1,215 +1,98 @@
-﻿using System.Collections;
-using System.Text;
-using System.Text.Json;
+﻿using System.Diagnostics;
+using System.Globalization;
+using Wcwidth;
 
-var interact = new Interactor();
+//var interactor = new Interactor(); 
+//interactor.Exec();
+Test.Test1();
 
- interact.Execute();
-
-union  CommandsOrAction(IList<Command>, Action);
-class Command
+class Scene : IEntry
 {
-    public Command Parent { get; set; }
-    // Second level. 
-    public bool CanBeInterface { get; set; }
-    // First level evaluate evidence
-    public CommandsOrAction SubCommandsOrAction { get; set; } = new List<Command>(); 
-    public required string Token { get; set; }
+    public List<IEntry> Items { get; set; } = []; 
+}
+
+class Exec : IEntry
+{
+    public required Action Executor { get; set; }
     
 }
+
+interface IEntry
+{
+    
+}
+
 
 class Interactor
 {
-    public IList<Command> RootCommands { get; set; } = [new Command
+    public string Symbol { get; set; } = ">";
+    public Interactor()
     {
-        Token = "ls", SubCommandsOrAction = new Action(() =>
-        {
-            Console.WriteLine();
-            Console.Write("lsslslsl");
-        })
-    }]; 
-    public string Starter { get; set; } = ">";
-    /// <summary>
-    /// This should never end. 
-    /// </summary>
-    public void Execute()
-    {
-        Execute(CancellationToken.None);
+        
     }
 
-    // ReSharper disable once MethodOverloadWithOptionalParameter
-    private void Execute(CancellationToken cancellationToken = default)
+    public Interactor(string symbol)
     {
-        var buffer = new List<char>();
+        Symbol = symbol; 
+    }
+    public void Exec()
+    {
         while (true)
         {
-            Refresher();
-
-            try
+            Console.Write("{0} ",  Symbol);
+            
+            var i = Console.ReadKey(true);
+            var bf = new List<char>();
+            var width = () =>
             {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-            catch (OperationCanceledException)
+                Debug.WriteLine(UnicodeCalculator.GetWidth(new string(bf.ToArray())));
+                Debug.WriteLine(bf.Count);
+                return UnicodeCalculator.GetWidth(new string(bf.ToArray()));
+            };
+            while (i.Key is not ConsoleKey.Enter)
             {
-                return; 
-            }
-
-            void Refresher()
-            {
-                Console.SetCursorPosition(0, Console.CursorTop);
-                for (int i = 0; i < 2 + buffer.Count; i++)
+                switch (i)
                 {
-                    Console.Write(" ");
-                }
-                Console.SetCursorPosition(0, Console.CursorTop);
-                
-                Console.Write(Starter + " " + new string(buffer.ToArray()));
-            }
-
-            var consoleKeyInfo = Console.ReadKey(true);
-            switch (consoleKeyInfo)
-            {
-                case {Key: ConsoleKey.Enter}:
-                    if (Check(new string(buffer.ToArray())))
-                    {
+                    case{Key: ConsoleKey.Backspace}:
+                        Console.SetCursorPosition(0, Console.CursorTop);
                         
-                        var @out = new string(buffer.ToArray()).Split(' ',
-                            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        var idx = 1;
-                        var command = RootCommands.FirstOrDefault(i=>i.Token == @out[0]);
-                        if (command is not null)
+                        for (int j = 0; j < width.Invoke() + 2; j++)
                         {
-                            var sm = new ExecutorStateMachine(command);
-                            if (@out.Length != idx)
-                            {
-                                while (sm.HasNext(@out[idx]))
-                                {
-                                    sm.NextOrExec(@out[idx]);
-                                    idx++;
-                                }
-                            }
-                            else
-                            {
-                                sm.NextOrExec(@out[0]);
-                            }
-                            Console.WriteLine();
-                            buffer.Clear();
-                            break; 
+                            Console.Write(' ');
                         }
-                        Console.WriteLine();
-                        Console.Write("Bad command");
+                        Console.SetCursorPosition(0, Console.CursorTop);
+                        try
+                        {
+                            bf.RemoveAt(bf.Count - 1);
+                        }
+                        catch (ArgumentOutOfRangeException)
+                        {
+                        }
+                        Console.Write("{0} {1}", Symbol, new string(bf.ToArray()));
                         
-                       
-                    }
-                    else
-                    {
-                        fail:
-                        Console.WriteLine();
-                        Console.Write("Bad command");
+                        break;
+                    default:
+                        bf.Add(i.KeyChar);
+                        Console.SetCursorPosition(0, Console.CursorTop);
                         
-                    }
-                    buffer.Clear();
-                    Console.WriteLine();
-                    break; 
-                case {Key: ConsoleKey.Backspace}:
-                    if (buffer.Count > 0)
-                    {
-                        buffer.RemoveAt(buffer.Count - 1);
-                    }
-                    break;
-                default:
-                    buffer.Add(consoleKeyInfo.KeyChar);
-                    break; 
-            }
-            
-            
-        }
-    }
-
-    private bool Check(string? str)
-    {
-        if (string.IsNullOrWhiteSpace(str))
-        {
-            return false; 
-        }
-        
-        return true; 
-    }
-    public Task ExecuteAsync(CancellationToken ?cancellationToken = null)
-    {
-        return cancellationToken is null ? Task.Run(() =>
-        {
-            Execute(CancellationToken.None);
-        }) : Task.Run(() =>
-        {
-            Execute(cancellationToken.Value);
-        }, cancellationToken.Value);
-    }
-}
-
-static class Ext
-{
-    public delegate bool CurrentWithNextDelegate<in T>(T current, T next);
-    extension<T>(IList<T> collection)
-    {
-        public bool CurrentWithNext(CurrentWithNextDelegate<T> predicate)
-        {
-            int index = 0;
-            while (index < collection.Count)
-            {
-                if (!predicate(collection[index], collection[index + 1]))
-                {
-                    return false;
+                        for (int j = 0; j < width.Invoke(); j++)
+                        {
+                            Console.Write(' ');
+                        }
+                        Console.SetCursorPosition(0, Console.CursorTop);
+                        Console.Write("{0} {1}", Symbol, new string(bf.ToArray()));
+                        break;
                 }
-
-                index += 2;
+                i = Console.ReadKey(true);
             }
-
-            return true;
+            Console.WriteLine();
+            Console.Write(new string(bf.ToArray()));
+            Console.WriteLine();
+            bf.Clear();
         }
     }
 }
 
-class ExecutorStateMachine
-{
-    private Command Executing { get; set; }
-    
 
-    public ExecutorStateMachine(Command build)
-    {
-        Executing = build;
-    }
 
-    public void NextOrExec(string? content)
-    {
-        
-        if (Executing.SubCommandsOrAction is IList<Command>)
-        {
-            Executing = ((IList<Command>)Executing.SubCommandsOrAction.Value).FirstOrDefault(i => i.Token == content);
-            if (Executing is null)
-            {
-                Console.Write("Bad command");
-            }
-        }
-        else
-        {
-            ((Action)Executing.SubCommandsOrAction.Value).Invoke();
-        }
-    }
 
-    public bool HasNext(string token)
-    {
-        if (Executing.SubCommandsOrAction is IList<Command> )
-        {
-            if ((
-                    (IList<Command>)Executing.SubCommandsOrAction.Value).Count != 0 &&
-                ((IList<Command>)Executing.SubCommandsOrAction.Value).Any(i=>i.Token == token))
-            {
-                return true;
-            }
-
-        }
-
-        return false;
-    }
-}
