@@ -5,8 +5,42 @@
         <ImplicitUsings>enable</ImplicitUsings>
         <Nullable>enable</Nullable>
         <GenerateDocumentationFile>true</GenerateDocumentationFile>
+
+        <Version>1.0.0</Version>
+        <Description>Minimal interactive command interpreter library: scene/exec command tree with a Unicode-aware line editor.</Description>
+
+        <!-- Single RID-neutral package: the library is pure managed code -->
+        <PackageLicenseExpression>MIT</PackageLicenseExpression>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <RepositoryUrl>https://github.com/AXCWG/Interactor</RepositoryUrl>
+        <PublishRepositoryUrl>true</PublishRepositoryUrl>
+        <PackageTags>repl;interactive;console;command;interpreter;terminal;cli</PackageTags>
+
+        <NupkgOutputRoot>$(MSBuildProjectDirectory)/artifacts/nupkg</NupkgOutputRoot>
+
+        <!-- Emit a .snupkg symbol package next to the .nupkg -->
+        <IncludeSymbols>true</IncludeSymbols>
+        <SymbolPackageFormat>snupkg</SymbolPackageFormat>
     </PropertyGroup>
+
     <ItemGroup>
         <PackageReference Include="Wcwidth" Version="4.0.1" />
     </ItemGroup>
+
+    <!-- Embed the repository README (../README.md) in the package -->
+    <ItemGroup>
+        <None Include="../README.md" Pack="true" PackagePath="\" />
+    </ItemGroup>
+
+    <!-- Packs a single RID-neutral NuGet package + symbol package into artifacts/nupkg.
+         Run with: dotnet build Interactor.Lib/Interactor.Lib.csproj -t:PackPackages -->
+    <Target Name="PackPackages" DependsOnTargets="Restore">
+        <MSBuild Projects="$(MSBuildProjectFullPath)"
+                 Targets="Pack"
+                 Properties="PackageOutputPath=$(NupkgOutputRoot);
+                             Configuration=$(Configuration)" />
+        <Message Importance="high"
+                 Text="Interactor.Lib NuGet + symbol packages written to $(NupkgOutputRoot)" />
+    </Target>
+
 </Project>
