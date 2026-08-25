@@ -1,215 +1,79 @@
-﻿using System.Collections;
-using System.Text;
+﻿using System.Diagnostics;
+using System.Globalization;
 using System.Text.Json;
-
-var interact = new Interactor();
-
- interact.Execute();
-
-union  CommandsOrAction(IList<Command>, Action);
-class Command
+using Interactor.Lib;
+using Wcwidth;
+var interactor = new Interactor.Lib.Interactor()
 {
-    public Command Parent { get; set; }
-    // Second level. 
-    public bool CanBeInterface { get; set; }
-    // First level evaluate evidence
-    public CommandsOrAction SubCommandsOrAction { get; set; } = new List<Command>(); 
-    public required string Token { get; set; }
-    
-}
-
-class Interactor
+    Symbol = ">>"
+}; 
+interactor.RootCommand.Add(new Exec()
 {
-    public IList<Command> RootCommands { get; set; } = [new Command
+    Token = "ls", 
+    Executor = (_)=>Console.Write("Executed")
+});
+interactor.RootCommand.Add(new Exec()
+{
+    Token = "getParam",
+    Executor = (p)=>Console.Write(JsonSerializer.Serialize(p))
+});
+var disk = new Scene()
+{
+    Parent = null,
+    Token = "disk",
+};
+disk.Items.Add(
+    new Exec()
     {
-        Token = "ls", SubCommandsOrAction = new Action(() =>
+        Token = "list",
+        Executor = (_) => Console.Write("listed disks")
+    });
+disk.Items.Add(
+    new Scene()
+    {
+        Token = "partitions",
+        Parent = disk
+    });
+interactor.RootCommand.Add(disk);
+
+interactor.Exec();
+
+
+
+/// <summary>Small experiments with grapheme clusters, runes, and display widths.</summary>
+static class Test
+{
+    /// <summary>Prints the number of grapheme clusters in a ZWJ family emoji.</summary>
+    public static void Test1()
+    {
+        var value = "👨‍👩‍👧‍👦";
+        var graphemes = new List<string>(); 
+        var e = StringInfo.GetTextElementEnumerator(value);
+        while (e.MoveNext())
         {
-            Console.WriteLine();
-            Console.Write("lsslslsl");
-        })
-    }]; 
-    public string Starter { get; set; } = ">";
-    /// <summary>
-    /// This should never end. 
-    /// </summary>
-    public void Execute()
-    {
-        Execute(CancellationToken.None);
+            graphemes.Add(e.GetTextElement());
+        }
+        Console.WriteLine(graphemes.Count);
     }
 
-    // ReSharper disable once MethodOverloadWithOptionalParameter
-    private void Execute(CancellationToken cancellationToken = default)
+    /// <summary>Prints the number of runes in a string mixing ZWJ emoji and CJK text.</summary>
+    public static void Test2()
     {
-        var buffer = new List<char>();
-        while (true)
+        var value = "🧑‍🧑‍🧒写";
+        int length = 0;
+        foreach (var enumerateRune in value.EnumerateRunes())
         {
-            Refresher();
-
-            try
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-            }
-            catch (OperationCanceledException)
-            {
-                return; 
-            }
-
-            void Refresher()
-            {
-                Console.SetCursorPosition(0, Console.CursorTop);
-                for (int i = 0; i < 2 + buffer.Count; i++)
-                {
-                    Console.Write(" ");
-                }
-                Console.SetCursorPosition(0, Console.CursorTop);
-                
-                Console.Write(Starter + " " + new string(buffer.ToArray()));
-            }
-
-            var consoleKeyInfo = Console.ReadKey(true);
-            switch (consoleKeyInfo)
-            {
-                case {Key: ConsoleKey.Enter}:
-                    if (Check(new string(buffer.ToArray())))
-                    {
-                        
-                        var @out = new string(buffer.ToArray()).Split(' ',
-                            StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
-                        var idx = 1;
-                        var command = RootCommands.FirstOrDefault(i=>i.Token == @out[0]);
-                        if (command is not null)
-                        {
-                            var sm = new ExecutorStateMachine(command);
-                            if (@out.Length != idx)
-                            {
-                                while (sm.HasNext(@out[idx]))
-                                {
-                                    sm.NextOrExec(@out[idx]);
-                                    idx++;
-                                }
-                            }
-                            else
-                            {
-                                sm.NextOrExec(@out[0]);
-                            }
-                            Console.WriteLine();
-                            buffer.Clear();
-                            break; 
-                        }
-                        Console.WriteLine();
-                        Console.Write("Bad command");
-                        
-                       
-                    }
-                    else
-                    {
-                        fail:
-                        Console.WriteLine();
-                        Console.Write("Bad command");
-                        
-                    }
-                    buffer.Clear();
-                    Console.WriteLine();
-                    break; 
-                case {Key: ConsoleKey.Backspace}:
-                    if (buffer.Count > 0)
-                    {
-                        buffer.RemoveAt(buffer.Count - 1);
-                    }
-                    break;
-                default:
-                    buffer.Add(consoleKeyInfo.KeyChar);
-                    break; 
-            }
-            
-            
+            length++;
         }
+        Console.WriteLine(length);
     }
-
-    private bool Check(string? str)
+    /// <summary>Prints the display width of a mixed emoji/Latin string via the Wcwidth package.</summary>
+    public static void Test3()
     {
-        if (string.IsNullOrWhiteSpace(str))
-        {
-            return false; 
-        }
+        var value = "🧑‍🧑‍🧒abcde";
         
-        return true; 
-    }
-    public Task ExecuteAsync(CancellationToken ?cancellationToken = null)
-    {
-        return cancellationToken is null ? Task.Run(() =>
-        {
-            Execute(CancellationToken.None);
-        }) : Task.Run(() =>
-        {
-            Execute(cancellationToken.Value);
-        }, cancellationToken.Value);
+        Console.WriteLine(UnicodeCalculator.GetWidth(value));
     }
 }
 
-static class Ext
-{
-    public delegate bool CurrentWithNextDelegate<in T>(T current, T next);
-    extension<T>(IList<T> collection)
-    {
-        public bool CurrentWithNext(CurrentWithNextDelegate<T> predicate)
-        {
-            int index = 0;
-            while (index < collection.Count)
-            {
-                if (!predicate(collection[index], collection[index + 1]))
-                {
-                    return false;
-                }
 
-                index += 2;
-            }
-
-            return true;
-        }
-    }
-}
-
-class ExecutorStateMachine
-{
-    private Command Executing { get; set; }
-    
-
-    public ExecutorStateMachine(Command build)
-    {
-        Executing = build;
-    }
-
-    public void NextOrExec(string? content)
-    {
-        
-        if (Executing.SubCommandsOrAction is IList<Command>)
-        {
-            Executing = ((IList<Command>)Executing.SubCommandsOrAction.Value).FirstOrDefault(i => i.Token == content);
-            if (Executing is null)
-            {
-                Console.Write("Bad command");
-            }
-        }
-        else
-        {
-            ((Action)Executing.SubCommandsOrAction.Value).Invoke();
-        }
-    }
-
-    public bool HasNext(string token)
-    {
-        if (Executing.SubCommandsOrAction is IList<Command> )
-        {
-            if ((
-                    (IList<Command>)Executing.SubCommandsOrAction.Value).Count != 0 &&
-                ((IList<Command>)Executing.SubCommandsOrAction.Value).Any(i=>i.Token == token))
-            {
-                return true;
-            }
-
-        }
-
-        return false;
-    }
-}

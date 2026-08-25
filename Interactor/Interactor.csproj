@@ -1,4 +1,4 @@
-﻿<Project Sdk="Microsoft.NET.Sdk">
+<Project Sdk="Microsoft.NET.Sdk">
 
     <PropertyGroup>
         <OutputType>Exe</OutputType>
@@ -9,5 +9,13 @@
         <InvariantGlobalization>true</InvariantGlobalization>
         <LangVersion>preview</LangVersion>
     </PropertyGroup>
+
+    <ItemGroup>
+      <PackageReference Include="Wcwidth" Version="4.0.1" />
+    </ItemGroup>
+
+    <ItemGroup>
+      <ProjectReference Include="..\Interactor.Lib\Interactor.Lib.csproj" />
+    </ItemGroup>
 
 </Project>
